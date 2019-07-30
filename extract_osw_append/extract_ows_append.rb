@@ -61,7 +61,7 @@ def get_file_s3(file_id:)
   bucket_name = 'btapresultsbucket'
   bucket = s3.bucket(bucket_name)
   ret_bucket = bucket.object(file_id)
-  if ret_bucket.exist?
+  if ret_bucket.exists?
     #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
     download_loc = '/temp/out.zip'
     osw_index = 0
@@ -70,7 +70,7 @@ def get_file_s3(file_id:)
       ret_bucket.download_file(download_loc)
       osw_index = 11 if File.exist?(download_loc)
     end
-    if osw_index = 10
+    if osw_index == 10
       return {exist: false, file: nil}
     else
       return {exist: true, file: download_loc}
@@ -100,7 +100,7 @@ def get_s3_stream(file_id:)
   bucket_name = 'btapresultsbucket'
   bucket = s3_res.bucket(bucket_name)
   ret_bucket = bucket.object(file_id)
-  if ret_bucket.exist?
+  if ret_bucket.exists?
     s3_cli = Aws::S3::Client.new(region: region)
     return_data = JSON.parse(s3_cli.get_object(bucket: bucket_name, key: file_id))
   else
