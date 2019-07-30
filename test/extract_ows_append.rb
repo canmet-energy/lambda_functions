@@ -16,12 +16,13 @@ def handler(event:, context:)
   file_id = event[:file_id]
   analysis_json = event[:analysis_json]
   response = process_file(osa_id: osa_id, osd_id: osd_id, file_id: file_id, context: context, analysis_json: analysis_json)
+  puts response
 end
 
 def process_file(osa_id:, osd_id:, file_id:, context:, analysis_json:)
   s3file = get_file_s3(file_id: file_id)
   if s3file[:exist]
-    return false
+    return 'fail'
   else
     osw_json = unzip_osw(zip_file: s3file[:file])
   end
@@ -52,7 +53,9 @@ def process_file(osa_id:, osd_id:, file_id:, context:, analysis_json:)
   err_col_data << error_col
   qaqc_status = put_data_s3(file_id: qaqc_col_file, data: qaqc_col_data)
   err_status = put_data_s3(file_id: err_col_file, data: err_col_data)
-  return true
+  puts "qaqc_status: #{qaqc_status}"
+  puts "err_status: #{err_status}"
+  return 'pass'
 end
 
 def get_file_s3(file_id:)
