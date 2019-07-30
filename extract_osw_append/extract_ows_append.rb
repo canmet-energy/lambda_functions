@@ -1,7 +1,6 @@
 require 'bundler'
 require 'aws-sdk-s3'
 require 'aws-sdk-lambda'
-require 'rest-client'
 require 'fileutils'
 require 'zip'
 require 'parallel'
