@@ -1,20 +1,6 @@
-#!/usr/bin/env ruby
-
-#Ensure that ruby can find the gems this script uses.
-gem_loc = '/usr/local/lib/ruby/gems/2.2.0/gems/'
-gem_dirs = Dir.entries(gem_loc).select {|entry| File.directory? File.join(gem_loc,entry) and !(entry =='.' || entry == '..') }
-gem_dirs.sort.each do |gem_dir|
-  lib_loc = ''
-  lib_loc = gem_loc + gem_dir + '/lib'
-  $LOAD_PATH.unshift(lib_loc) unless $LOAD_PATH.include?(lib_loc)
-end
-
 require 'bundler'
-require 'securerandom'
 require 'aws-sdk-s3'
 require 'aws-sdk-lambda'
-require 'json'
-
 require 'rest-client'
 require 'fileutils'
 require 'zip'
@@ -25,16 +11,121 @@ require 'base64'
 require 'colored'
 require 'csv'
 
-# Extract data from the osw file and write it on the disk. This method also calls process_simulation_json method
-# which appends the qaqc data to the simulations.json. it only happens if the measure `btap_results` exist with
-# `btap_results_json_zip` variable stored as part of the measure
+def handler(event:, context:)
+  osa_id = event[:osa_id]
+  osd_id = event[:osd_id]
+  file_id = event[:file_id]
+  analysis_json = event[:analysis_json]
+  response = process_file(osa_id: osa_id, osd_id: osd_id, file_id: file_id, context: context, analysis_json: analysis_json)
+end
+
+def process_file(osa_id:, osd_id:, file_id:, context:, analysis_json:)
+  s3file = get_file_s3(file_id: file_id)
+  if s3file[:exist]
+    return false
+  else
+    osw_json = unzip_osw(zip_file: s3file[:file])
+  end
+  qaqc_col = []
+  error_col = []
+  osw_json.each do |osw|
+    aid = osw['osa_id']
+    uuid = osw['osd_id']
+    if aid.nil? || uuid.nil?
+      puts "Error either aid: #{aid} or uuid: #{uuid} not present"
+    else
+      qaqc, error_info = extract_data_from_osw(osw_json: osw, uuid: uuid, aid: aid, analysis_json: analysis_json)
+      qaqc.each do |qaqc_ind|
+        qaqc_col << qaqc_ind
+      end
+      error_info.each do |error_ind|
+        error_col << error_ind
+      end
+    end
+  end
+  # Get rid of the datapoint osw file that was just downloaded.
+  File.delete(s3file[:file])
+  qaqc_col_file = osa_id + '/' + 'simulations.json'
+  err_col_file = osa_id + '/' + 'error_col.json'
+  qaqc_col_data = get_s3_stream(file_id: qaqc_col_file)
+  qaqc_col_data << qaqc_col
+  err_col_data = get_s3_stream(file_id: err_col_file)
+  err_col_data << error_col
+  qaqc_status = put_data_s3(file_id: qaqc_col_file, data: qaqc_col_data)
+  err_status = put_data_s3(file_id: err_col_file, data: err_col_data)
+  return true
+end
+
+def get_file_s3(file_id:)
+  region = 'us-east-1'
+  s3 = Aws::S3::Resource.new(region: region)
+  bucket_name = 'btapresultsbucket'
+  bucket = s3.bucket(bucket_name)
+  ret_bucket = bucket.object(file_id)
+  if ret_bucket.exist?
+    #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
+    download_loc = '/temp/out.zip'
+    osw_index = 0
+    while osw_index < 10
+      osw_index += 1
+      ret_bucket.download_file(download_loc)
+      osw_index = 11 if File.exist?(download_loc)
+    end
+    if osw_index = 10
+      return {exist: false, file: nil}
+    else
+      return {exist: true, file: download_loc}
+    end
+  else
+    return {exist: false, file: nil}
+  end
+end
+
+# Source copied and modified from https://github.com/rubyzip/rubyzip.
+# This extracts the data from a zip file that presumably contains a json file.  It returns the contents of that file in
+# an array of hashes (if there were multiple files in the zip file.)
+def unzip_osw(zip_file:)
+  osw_json = []
+  Zip::File.open(zip_file) do |file|
+    file.each do |entry|
+      puts "Extracting #{entry.name}"
+      osw_json << JSON.parse(entry.get_input_stream.read)
+    end
+  end
+  return osw_json
+end
+
+def get_s3_stream(file_id:)
+  region = 'us-east-1'
+  s3_res = Aws::S3::Resource.new(region: region)
+  bucket_name = 'btapresultsbucket'
+  bucket = s3_res.bucket(bucket_name)
+  ret_bucket = bucket.object(file_id)
+  if ret_bucket.exist?
+    s3_cli = Aws::S3::Client.new(region: region)
+    return_data = JSON.parse(s3_cli.get_object(bucket: bucket_name, key: file_id))
+  else
+    return_data = []
+  end
+  return return_data
+end
+
+def put_data_s3(file_id:, data:)
+  out_data = JSON.pretty_generate(data)
+  region = 'us-east-1'
+  s3 = Aws::S3::Resource.new(region: region)
+  bucket_name = 'btapresultsbucket'
+  bucket = s3.bucket(bucket_name)
+  out_obj = bucket.object(file_id)
+  out_obj.put(body: out_data)
+end
 
 # @param osw_json [:hash] osw file in json hash format
 # @param output_folder [:string] parent folder where the data from osw will be extracted to
 # @param uuid [:string] UUID of the datapoint
 # @param simulations_json_folder [:string] root folder of the simulations.json file
 # # @param aid [:string] analysis ID
-def extract_data_from_osw(osw_json:, uuid:, aid:)
+def extract_data_from_osw(osw_json:, uuid:, aid:, analysis_json:)
   results = osw_json
   out_json = []
   error_return = []
@@ -119,9 +210,8 @@ def extract_data_from_osw(osw_json:, uuid:, aid:)
         json['measures'] = measure_data
 
         # add analysis_id and analysis name to the json file
-        analysis_json = JSON.parse(RestClient.get("http://web:80/analyses/#{aid}.json", headers={}))
-        json['analysis_id']=analysis_json['analysis']['_id']
-        json['analysis_name']=analysis_json['analysis']['display_name']
+        json['analysis_id']=analysis_json[:analysis_id]
+        json['analysis_name']=analysis_json[:analysis_name]
         ret_json, curr_error_return = process_simulation_json(json: json, uuid: uuid, aid: aid, osw_file: results)
         out_json << ret_json
         error_return << curr_error_return
@@ -212,127 +302,4 @@ def process_simulation_json(json:, uuid:, aid:, osw_file:)
     puts exception
   end
   return json, error_return
-end
-
-out_dir = ARGV[0].to_s
-
-#Set up s3 bucket info
-region = 'us-east-1'
-s3 = Aws::S3::Resource.new(region: region)
-bucket_name = 'btapresultsbucket'
-bucket = s3.bucket(bucket_name)
-
-#Get time information used for error logging
-time_obj = Time.new
-curr_time = time_obj.year.to_s + "-" + time_obj.month.to_s + "-" + time_obj.day.to_s + "_" + time_obj.hour.to_s + ":" + time_obj.min.to_s + ":" + time_obj.sec.to_s + ":" + time_obj.usec.to_s
-
-#Find the osw file.
-curr_dir = Dir.pwd
-main_dir = curr_dir[0..-4]
-res_dirs = Dir.entries(main_dir).select {|entry| File.directory? File.join(main_dir,entry) and !(entry =='.' || entry == '..') }
-out_file_loc = main_dir + out_dir + "/"
-out_file = out_file_loc + "out.osw"
-osa_id = ""
-osd_id = ""
-file_id = ""
-
-#Check if the osw exists
-if File.file?(out_file)
-  #Get the analysis id and datapoint id from the file
-  File.open(out_file, "r") do |f|
-    f.each_line do |line|
-      if line.match(/   \"osa_id\" : \"/)
-        osa_id = line[15..-4]
-      elsif line.match(/   \"osd_id\" : \"/)
-        osd_id = line[15..-4]
-      end
-    end
-    #If either the analysis id or datapoint id are missing from the osw file put an error log on S3
-    if osa_id == "" || osd_id == ""
-      file_id = "log_" + curr_time
-      log_file_loc = "./" + file_id + "txt"
-      log_file = File.open(log_file_loc, 'w')
-      log_file.puts "Either could not find osa_id or osd_id in out.osw file."
-      log_file.close
-      log_obj = bucket.object("log/" + file_id)
-      log_obj.upload_file(log_file_loc)
-    else
-      #Transfer osw to S3
-      osw_file_id = osa_id + "/" + osd_id + ".osw"
-      out_obj = bucket.object(osw_file_id)
-      while out_obj.exists? == false
-        out_obj.upload_file(out_file)
-      end
-      osw_json = JSON.parse(File.read(out_file))
-
-      #Get qaqc_info and catch any errors that are returned
-      qaqc_file_loc = './out_json_file.json'
-      error_file_loc = './out_error_file.json'
-      qaqc_info, error_info = extract_data_from_osw(osw_json: osw_json, uuid: osd_id, aid: osa_id)
-      #Create temporary files for s3 upload.  I tried using streaming to stream the data objects to s3 but that seems to
-      #have problems so used this, roundabout, ugly, method instead.
-      File.open(qaqc_file_loc,"w") {|each_file| each_file.write(JSON.pretty_generate(qaqc_info))}
-      File.open(error_file_loc,"w") {|each_file| each_file.write(JSON.pretty_generate(error_info))}
-
-      #Transfer qaqc json to S3
-      qaqc_file_id = osa_id + "/" + "qaqc_" + osd_id + ".json"
-      qaqc_out_obj = bucket.object(qaqc_file_id)
-      while qaqc_out_obj.exists? == false
-        qaqc_out_obj.upload_file(qaqc_file_loc)
-      end
-      File.delete(qaqc_file_loc) if File.exist?(qaqc_file_loc)
-
-      #Transfer error_info csv to S3
-      error_file_id = osa_id + "/" + "error_" + osd_id + ".json"
-      error_out_obj = bucket.object(error_file_id)
-      while error_out_obj.exists? == false
-        error_out_obj.upload_file(error_file_loc)
-      end
-      File.delete(error_file_loc) if File.exist?(error_file_loc)
-    end
-  end
-else
-  #If the osw is ont there push a log with the error onto s3
-  file_id = "log_" + curr_time
-  log_file_loc = "./" + file_id + "txt"
-  log_file = File.open(log_file_loc, 'w')
-  log_file.puts "#{out_file} could not be found."
-  log_file.close
-  log_obj = bucket.object("log/" + file_id)
-  log_obj.upload_file(log_file_loc)
-end
-
-require 'bundler'
-require 'aws-sdk-s3'
-require 'json'
-
-analysis_id = ARGV[0].to_s
-
-region = 'us-east-1'
-s3 = Aws::S3::Resource.new(region: region)
-bucket_name = 'btapresultsbucket'
-bucket = s3.bucket(bucket_name)
-
-res_path = "/mnt/openstudio/server/assets/"
-res_file = "results." + analysis_id + ".zip"
-res_file_path = res_path + res_file
-
-time_obj = Time.new
-curr_time = time_obj.year.to_s + "-" + time_obj.month.to_s + "-" + time_obj.day.to_s + "_" + time_obj.hour.to_s + ":" + time_obj.min.to_s + ":" + time_obj.sec.to_s + ":" + time_obj.usec.to_s
-
-if File.file?(res_file_path)
-  file_id = analysis_id + "/" + "results.zip"
-  out_obj = bucket.object(file_id)
-  resp = []
-  while out_obj.exists? == false
-    out_obj.upload_file(res_file_path)
-  end
-else
-  file_id = "log_" + curr_time
-  log_file_loc = "./" + file_id + ".txt"
-  log_file = File.open(log_file_loc, 'w')
-  log_file.puts "#{res_file_path} could not be found."
-  log_file.close
-  log_obj = bucket.object("log/" + file_id)
-  log_obj.upload_file(log_file_loc)
 end
