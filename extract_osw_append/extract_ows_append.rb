@@ -23,7 +23,7 @@ def process_file(osa_id:, osd_id:, file_id:, context:, analysis_json:)
   if s3file[:exist]
     osw_json = unzip_osw(zip_file: s3file[:file])
   else
-    return false
+    return "Could not find #{file_id}"
   end
   qaqc_col = []
   error_col = []
