@@ -102,7 +102,7 @@ def get_s3_stream(file_id:)
   ret_bucket = bucket.object(file_id)
   if ret_bucket.exists?
     s3_cli = Aws::S3::Client.new(region: region)
-    return_data = JSON.parse(s3_cli.get_object(bucket: bucket_name, key: file_id))
+    return_data = JSON.parse(s3_cli.get_object(bucket: bucket_name, key: file_id)[:body].string)
   else
     return_data = []
   end
