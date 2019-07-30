@@ -63,7 +63,7 @@ def get_file_s3(file_id:)
   ret_bucket = bucket.object(file_id)
   if ret_bucket.exists?
     #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
-    download_loc = '/temp/out.zip'
+    download_loc = '/tmp/out.zip'
     osw_index = 0
     while osw_index < 10
       osw_index += 1
