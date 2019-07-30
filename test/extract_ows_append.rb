@@ -107,6 +107,7 @@ def get_s3_stream(file_id:)
     s3_cli = Aws::S3::Client.new(region: region)
     fetch_data = s3_cli.get_object(bucket: bucket_name, key: file_id)
     puts "fetch_data: #{fetch_data}"
+    puts "fetch_data body: #{fetch_data[:body]}"
     return_data = JSON.parse(fetch_data)
     #return_data = JSON.parse(s3_cli.get_object(bucket: bucket_name, key: file_id))
   else
