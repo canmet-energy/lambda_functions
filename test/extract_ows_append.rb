@@ -22,9 +22,9 @@ end
 def process_file(osa_id:, osd_id:, file_id:, context:, analysis_json:)
   s3file = get_file_s3(file_id: file_id)
   if s3file[:exist]
-    return 'fail'
-  else
     osw_json = unzip_osw(zip_file: s3file[:file])
+  else
+    return 'fail'
   end
   qaqc_col = []
   error_col = []
