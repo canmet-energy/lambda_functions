@@ -1,4 +1,3 @@
-require 'bundler'
 require 'aws-sdk-s3'
 require 'aws-sdk-lambda'
 require 'fileutils'
