@@ -58,12 +58,12 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, context:)
 
   qaqc_col_file = osa_id.to_s + "/" + "simulations.json"
   err_col_file = osa_id.to_s + "/" + "error_col.json"
-  qaqc_col_data = get_s3_stream(file_id: qaqc_col_file)
+  qaqc_col_data = get_s3_stream(file_id: qaqc_col_file, bucket_name: bucket_name)
   qaqc_col_data << qaqc_col
-  err_col_data = get_s3_stream(file_id: err_col_file)
+  err_col_data = get_s3_stream(file_id: err_col_file, bucket_name: bucket_name)
   err_col_data << error_col
-  qaqc_status = put_data_s3(file_id: qaqc_col_file, data: qaqc_col_data)
-  err_status = put_data_s3(file_id: err_col_file, data: err_col_data)
+  qaqc_status = put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name,data: qaqc_col_data)
+  err_status = put_data_s3(file_id: err_col_file, bucket_name: bucket_name,data: err_col_data)
   return true
 end
 
@@ -138,10 +138,9 @@ def unzip_osw(zip_file:)
   return osw_json
 end
 
-def get_s3_stream(file_id:)
+def get_s3_stream(file_id:, bucket_name:)
   region = 'us-east-1'
   s3_res = Aws::S3::Resource.new(region: region)
-  bucket_name = 'btapresultsbucket'
   bucket = s3_res.bucket(bucket_name)
   ret_bucket = bucket.object(file_id)
   if ret_bucket.exists?
@@ -153,11 +152,10 @@ def get_s3_stream(file_id:)
   return return_data
 end
 
-def put_data_s3(file_id:, data:)
+def put_data_s3(file_id:, bucket_name:, data:)
   out_data = JSON.pretty_generate(data)
   region = 'us-east-1'
   s3 = Aws::S3::Resource.new(region: region)
-  bucket_name = 'btapresultsbucket'
   bucket = s3.bucket(bucket_name)
   out_obj = bucket.object(file_id)
   out_obj.put(body: out_data)
