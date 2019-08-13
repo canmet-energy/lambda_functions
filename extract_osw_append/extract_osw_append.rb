@@ -19,6 +19,7 @@ def handler(event:, context:)
     analysis_name: event["analysis_json"]["analysis_name"]
   }
   response = process_file(osa_id: osa_id, osd_id: osd_id, file_id: file_id, context: context, analysis_json: analysis_json)
+  #response = event
   { statusCode: 200, body: JSON.generate(response) }
 end
 
@@ -52,8 +53,9 @@ def process_file(osa_id:, osd_id:, file_id:, context:, analysis_json:)
   end
   # Get rid of the datapoint osw file that was just downloaded.
   File.delete(s3file[:file])
-  qaqc_col_file = osa_id + '/' + 'simulations.json'
-  err_col_file = osa_id + '/' + 'error_col.json'
+
+  qaqc_col_file = osa_id.to_s + "/" + "simulations.json"
+  err_col_file = osa_id.to_s + "/" + "error_col.json"
   qaqc_col_data = get_s3_stream(file_id: qaqc_col_file)
   qaqc_col_data << qaqc_col
   err_col_data = get_s3_stream(file_id: err_col_file)
