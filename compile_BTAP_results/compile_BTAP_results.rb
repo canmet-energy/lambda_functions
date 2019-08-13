@@ -12,30 +12,74 @@ require 'csv'
 
 def handler(event:, context:)
   osa_id = event["osa_id"]
-  osd_id = event["osd_id"]
-  file_id = event["file_id"]
+  bucket_name = event["bucket_name"]
   analysis_json = {
     analysis_id: event["analysis_json"]["analysis_id"],
     analysis_name: event["analysis_json"]["analysis_name"]
   }
-  response = process_file(osa_id: osa_id, osd_id: osd_id, file_id: file_id, context: context, analysis_json: analysis_json)
-  #response = event
+  response = process_analysis(osa_id: osa_id, analysis_json: analysis_json, bucket_name: bucket_name, context: context)
   { statusCode: 200, body: JSON.generate(response) }
 end
 
-def process_file(osa_id:, osd_id:, file_id:, context:, analysis_json:)
+def process_analysis(osa_id:, analysis_json:, bucket_name:, context:)
+  error_col = []
+  qaqc_col = []
+
+  region = 'us-east-1'
+  s3 = Aws::S3::Resource.new(region: region)
+  bucket = s3.bucket(bucket_name)
+
+  #Go through all of the objects in the s3 bucket searching for the qaqc.json and error.json objects related the current
+  #analysis.
+  analysis_obj = bucket.object(osa_id)
+  unless analysis_obj.exist?
+    return_data = "No analysis with the name " + osa_id + " exists in the " + bucket_name + " bucket."
+    return return_data
+  end
+  bucket.objects.each do |bucket_info|
+    unless (/#{osa_id}/ =~ bucket_info.key.to_s).nil?
+      #Remove the / characters with _ to avoid regex problems
+      replacekey = bucket_info.key.to_s.gsub(/\//, '_')
+      #Search for objects with the current analysis id that have .zip in them, then extract the qaqc and error data
+      #and collate those into a qaqc_col array of hashes and an error col array of hashes.  Ultimately thes end up in an
+      #s3 bucket on aws.
+      unless (/.zip/ =~ replacekey.to_s).nil?
+        #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
+
+        string_start = osa_id.size
+        osd_id = replacekey[string_start..-5]
+        qaqc_col, error_col = process_file(osa_id: osa_id, osd_id: osd_id, file_id: bucket_info.key.to_s, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, error_col: error_col, context: context)
+        if qaqc_col == false
+          return error_col
+        end
+      end
+    end
+  end
+
+  qaqc_col_file = osa_id.to_s + "/" + "simulations.json"
+  err_col_file = osa_id.to_s + "/" + "error_col.json"
+  qaqc_col_data = get_s3_stream(file_id: qaqc_col_file)
+  qaqc_col_data << qaqc_col
+  err_col_data = get_s3_stream(file_id: err_col_file)
+  err_col_data << error_col
+  qaqc_status = put_data_s3(file_id: qaqc_col_file, data: qaqc_col_data)
+  err_status = put_data_s3(file_id: err_col_file, data: err_col_data)
+  return true
+end
+
+def process_file(osa_id:, osd_id:, file_id:, analysis_json:, bucket_name:, qaqc_col:, error_col:, context:)
   if file_id.nil?
     return "No file name passed."
   else
-    s3file = get_file_s3(file_id: file_id)
+    s3file = get_file_s3(file_id: file_id, bucket_name: bucket_name)
   end
   if s3file[:exist]
     osw_json = unzip_osw(zip_file: s3file[:file])
   else
-    return "Could not find #{file_id}"
+    file_exist = false
+    message = "Could not find #{file_id}"
+    return file_exist, message
   end
-  qaqc_col = []
-  error_col = []
   osw_json.each do |osw|
     aid = osw['osa_id']
     uuid = osw['osd_id']
@@ -53,22 +97,12 @@ def process_file(osa_id:, osd_id:, file_id:, context:, analysis_json:)
   end
   # Get rid of the datapoint osw file that was just downloaded.
   File.delete(s3file[:file])
-
-  qaqc_col_file = osa_id.to_s + "/" + "simulations.json"
-  err_col_file = osa_id.to_s + "/" + "error_col.json"
-  qaqc_col_data = get_s3_stream(file_id: qaqc_col_file)
-  qaqc_col_data << qaqc_col
-  err_col_data = get_s3_stream(file_id: err_col_file)
-  err_col_data << error_col
-  qaqc_status = put_data_s3(file_id: qaqc_col_file, data: qaqc_col_data)
-  err_status = put_data_s3(file_id: err_col_file, data: err_col_data)
-  return true
+  return qaqc_col, error_col
 end
 
-def get_file_s3(file_id:)
+def get_file_s3(file_id:, bucket_name:)
   region = 'us-east-1'
   s3 = Aws::S3::Resource.new(region: region)
-  bucket_name = 'btapresultsbucket'
   bucket = s3.bucket(bucket_name)
   ret_bucket = bucket.object(file_id)
   if ret_bucket.exists?
