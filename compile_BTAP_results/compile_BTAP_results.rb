@@ -46,7 +46,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, context:)
       unless (/.zip/ =~ replacekey.to_s).nil?
         #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
 
-        string_start = osa_id.size
+        string_start = osa_id.size + 1
         osd_id = replacekey[string_start..-5]
         qaqc_col, error_col = process_file(osa_id: osa_id, osd_id: osd_id, file_id: bucket_info.key.to_s, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, error_col: error_col, context: context)
         if qaqc_col == false
