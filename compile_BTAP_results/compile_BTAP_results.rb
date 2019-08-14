@@ -31,11 +31,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, context:)
 
   #Go through all of the objects in the s3 bucket searching for the qaqc.json and error.json objects related the current
   #analysis.
-  analysis_obj = bucket.object(osa_id)
-  unless analysis_obj.exist?
-    return_data = "No analysis with the name " + osa_id + " exists in the " + bucket_name + " bucket."
-    return return_data
-  end
+  analysis_started = false
   bucket.objects.each do |bucket_info|
     unless (/#{osa_id}/ =~ bucket_info.key.to_s).nil?
       #Remove the / characters with _ to avoid regex problems
@@ -45,15 +41,21 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, context:)
       #s3 bucket on aws.
       unless (/.zip/ =~ replacekey.to_s).nil?
         #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
-
         string_start = osa_id.size + 1
         osd_id = replacekey[string_start..-5]
         qaqc_col, error_col = process_file(osa_id: osa_id, osd_id: osd_id, file_id: bucket_info.key.to_s, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, error_col: error_col, context: context)
         if qaqc_col == false
           return error_col
         end
+        analysis_started = true
       end
     end
+  end
+
+  # Return error if there were no buckets with the osa_id in it.
+  unless analysis_started
+    return_data = "No analysis with the name " + osa_id + " exists in the " + bucket_name + " bucket."
+    return return_data
   end
 
   qaqc_col_file = osa_id.to_s + "/" + "simulations.json"
