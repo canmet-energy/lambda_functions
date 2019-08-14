@@ -1,6 +1,5 @@
 require 'rubygems'
 require 'aws-sdk-s3'
-require 'aws-sdk-lambda'
 require 'fileutils'
 require 'zip'
 require 'parallel'
@@ -13,42 +12,29 @@ require 'csv'
 def handler(event:, context:)
   osa_id = event["osa_id"]
   bucket_name = event["bucket_name"]
+  object_keys = event["object_keys"]
+  cycle_count = event["cycle_count"]
   analysis_json = {
     analysis_id: event["analysis_json"]["analysis_id"],
     analysis_name: event["analysis_json"]["analysis_name"]
   }
-  response = process_analysis(osa_id: osa_id, analysis_json: analysis_json, bucket_name: bucket_name, context: context)
+  response = process_analysis(osa_id: osa_id, analysis_json: analysis_json, bucket_name: bucket_name, object_keys: object_keys, cycle_count: cycle_count)
   { statusCode: 200, body: JSON.generate(response) }
 end
 
-def process_analysis(osa_id:, analysis_json:, bucket_name:, context:)
+def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_count:)
   error_col = []
   qaqc_col = []
-
   region = 'us-east-1'
   s3 = Aws::S3::Resource.new(region: region)
   bucket = s3.bucket(bucket_name)
-
-  #Go through all of the objects in the s3 bucket searching for the qaqc.json and error.json objects related the current
-  #analysis.
-  analysis_started = false
-  bucket.objects.each do |bucket_info|
-    unless (/#{osa_id}/ =~ bucket_info.key.to_s).nil?
-      #Remove the / characters with _ to avoid regex problems
-      replacekey = bucket_info.key.to_s.gsub(/\//, '_')
-      #Search for objects with the current analysis id that have .zip in them, then extract the qaqc and error data
-      #and collate those into a qaqc_col array of hashes and an error col array of hashes.  Ultimately thes end up in an
-      #s3 bucket on aws.
-      unless (/.zip/ =~ replacekey.to_s).nil?
-        #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
-        string_start = osa_id.size + 1
-        osd_id = replacekey[string_start..-5]
-        qaqc_col, error_col = process_file(osa_id: osa_id, osd_id: osd_id, file_id: bucket_info.key.to_s, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, error_col: error_col, context: context)
-        if qaqc_col == false
-          return error_col
-        end
-        analysis_started = true
-      end
+  object_keys.each do |object_key|
+    #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
+    string_start = osa_id.size + 1
+    osd_id = object_key[string_start..-5]
+    qaqc_col, error_col = process_file(osa_id: osa_id, osd_id: osd_id, file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, error_col: error_col)
+    if qaqc_col == false
+      return error_col
     end
   end
 
@@ -57,9 +43,10 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, context:)
     return_data = "No analysis with the name " + osa_id + " exists in the " + bucket_name + " bucket."
     return return_data
   end
+  out_count = cycle_count + 1
 
-  qaqc_col_file = osa_id.to_s + "/" + "simulations.json"
-  err_col_file = osa_id.to_s + "/" + "error_col.json"
+  qaqc_col_file = osa_id.to_s + "/" + "simulations_" + out_count + ".json"
+  err_col_file = osa_id.to_s + "/" + "error_col_" + out_count + ".json"
   qaqc_col_data = get_s3_stream(file_id: qaqc_col_file, bucket_name: bucket_name)
   qaqc_col_data << qaqc_col
   err_col_data = get_s3_stream(file_id: err_col_file, bucket_name: bucket_name)
@@ -69,7 +56,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, context:)
   return true
 end
 
-def process_file(osa_id:, osd_id:, file_id:, analysis_json:, bucket_name:, qaqc_col:, error_col:, context:)
+def process_file(osa_id:, osd_id:, file_id:, analysis_json:, bucket_name:, qaqc_col:, error_col:)
   if file_id.nil?
     return "No file name passed."
   else
