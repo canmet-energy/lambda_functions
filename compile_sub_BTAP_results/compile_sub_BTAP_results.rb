@@ -38,7 +38,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
     end
   end
   
-  out_count = cycle_count + 1
+  out_count = (cycle_count.to_i + 1).to_s
 
   qaqc_col_file = osa_id.to_s + "/" + "simulations_" + out_count + ".json"
   err_col_file = osa_id.to_s + "/" + "error_col_" + out_count + ".json"
