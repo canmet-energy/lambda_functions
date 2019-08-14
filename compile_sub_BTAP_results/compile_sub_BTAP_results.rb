@@ -37,12 +37,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
       return error_col
     end
   end
-
-  # Return error if there were no buckets with the osa_id in it.
-  unless analysis_started
-    return_data = "No analysis with the name " + osa_id + " exists in the " + bucket_name + " bucket."
-    return return_data
-  end
+  
   out_count = cycle_count + 1
 
   qaqc_col_file = osa_id.to_s + "/" + "simulations_" + out_count + ".json"
