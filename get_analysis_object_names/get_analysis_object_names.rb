@@ -24,7 +24,7 @@ def search_objects(osa_id:, bucket_name:)
       #s3 bucket on aws.
       unless (/.zip/ =~ replacekey.to_s).nil?
         #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
-        object_names << bucket_info
+        object_names << bucket_info.key.to_s
       end
     end
   end
