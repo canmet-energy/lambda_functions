@@ -1,6 +1,9 @@
 require 'json'
 
-osa_id = '5d822d74-f567-4a36-b7c9-665768465b16'
+#osa_id = '5d822d74-f567-4a36-b7c9-665768465b16'
+osa_id = '1891a532-04d9-4668-abd5-fa802516c871'
+bucket_name = "btapresultsbucket"
+
 #datapoint_ids = [
 #    '1c56ca9e-b637-4969-be12-3936e1f4b3ca',
 #    '2c49b2fe-d100-485e-a5a4-304712f316b4',
@@ -11,7 +14,8 @@ osa_id = '5d822d74-f567-4a36-b7c9-665768465b16'
 #    'b762a70b-e174-4fd7-84a4-9fcd9071cac5',
 #    'b8e136f7-6522-4a4e-a838-2b8a8d705156'
 #]
-
+#
+=begin
 datapoint_ids = [
     '5d822d74-f567-4a36-b7c9-665768465b16/2822704e-1b90-492d-a72b-2128fdbbf5c4.zip',
     '5d822d74-f567-4a36-b7c9-665768465b16/9318e5de-173a-464c-b8ae-b8bc9bcc88ec.zip',
@@ -22,21 +26,33 @@ datapoint_ids = [
     '5d822d74-f567-4a36-b7c9-665768465b16/d043ee8f-3465-4bf6-b61e-6f2a57a17898.zip',
     '5d822d74-f567-4a36-b7c9-665768465b16/e475b03d-fdab-4969-8b03-b4a23dff5d9c.zip'
 ]
+=end
 
 #datapoint_ids = [
 #    '1c56ca9e-b637-4969-be12-3936e1f4b3ca'
 #]
-bucket_name = "btapresultsbucket"
-analysis_json = {
-    analysis_id: osa_id,
-    analysis_name: 'test_analysis'
-}
+#analysis_json = {
+#    analysis_id: osa_id,
+#    analysis_name: 'test_analysis'
+#}
+
+=begin
 event = {
     osa_id: osa_id,
     bucket_name: bucket_name,
     object_keys: datapoint_ids,
     cycle_count: 0,
     analysis_json: analysis_json
+}
+=end
+
+cycle_count = 1
+append_tag = "error_col"
+event = {
+    osa_id: osa_id,
+    bucket_name: bucket_name,
+    cycle_count: cycle_count,
+    append_tag: append_tag
 }
 
 =begin
