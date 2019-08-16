@@ -15,8 +15,8 @@ def handler(event:, context:)
   object_keys = event["object_keys"]
   cycle_count = event["cycle_count"]
   analysis_json = {
-    analysis_id: event["analysis_json"]["analysis_id"],
-    analysis_name: event["analysis_json"]["analysis_name"]
+      analysis_id: event["analysis_json"]["analysis_id"],
+      analysis_name: event["analysis_json"]["analysis_name"]
   }
   response = process_analysis(osa_id: osa_id, analysis_json: analysis_json, bucket_name: bucket_name, object_keys: object_keys, cycle_count: cycle_count)
   { statusCode: 200, body: JSON.generate(response) }
@@ -28,6 +28,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
   region = 'us-east-1'
   s3 = Aws::S3::Resource.new(region: region)
   bucket = s3.bucket(bucket_name)
+
   object_keys.each do |object_key|
     #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
     string_start = osa_id.size + 1
@@ -37,7 +38,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
       return error_col
     end
   end
-  
+
   out_count = (cycle_count.to_i + 1).to_s
 
   qaqc_col_file = osa_id.to_s + "/" + "simulations_" + out_count + ".json"
