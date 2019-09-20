@@ -49,6 +49,7 @@ def put_data_s3(file_id:, bucket_name:, data:)
   bucket = s3.bucket(bucket_name)
   out_obj = bucket.object(file_id)
   while out_obj.exists? == false
-    out_obj.put(body: out_data)
+    res = out_obj.put(body: out_data)
   end
+  return res
 end
