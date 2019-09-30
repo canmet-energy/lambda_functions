@@ -4,7 +4,9 @@ require 'aws-sdk-s3'
 def lambda_handler(event:, context:)
   osa_id = event["osa_id"]
   bucket_name = event["bucket_name"]
-  object_names = search_objects(osa_id: osa_id, bucket_name: bucket_name)
+  analysis_name = event["analysis_name"]
+  folder_name = analysis_name + "_" + osa_id
+  object_names = search_objects(osa_id: folder_name, bucket_name: bucket_name)
   { statusCode: 200, body: JSON.generate(object_names) }
 end
 

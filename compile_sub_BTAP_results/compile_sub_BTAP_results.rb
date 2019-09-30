@@ -31,7 +31,8 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
 
   object_keys.each do |object_key|
     #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
-    string_start = osa_id.size + 1
+    folder_name = analysis_json[:analysis_name] + "_" + osa_id
+    string_start = folder_name.size + 1
     osd_id = object_key[string_start..-5]
     qaqc_col, error_col = process_file(osa_id: osa_id, osd_id: osd_id, file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, error_col: error_col)
     if qaqc_col == false
@@ -41,8 +42,8 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
 
   out_count = (cycle_count.to_i + 1).to_s
 
-  qaqc_col_file = osa_id.to_s + "/" + "simulations_" + out_count + ".json"
-  err_col_file = osa_id.to_s + "/" + "error_col_" + out_count + ".json"
+  qaqc_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "simulations_" + out_count + ".json"
+  err_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "error_col_" + out_count + ".json"
   qaqc_col_data = get_s3_stream(file_id: qaqc_col_file, bucket_name: bucket_name)
   qaqc_col_data << qaqc_col
   err_col_data = get_s3_stream(file_id: err_col_file, bucket_name: bucket_name)
