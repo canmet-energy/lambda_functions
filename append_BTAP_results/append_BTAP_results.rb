@@ -19,7 +19,7 @@ def process_results(osa_id:, bucket_name:, append_tag:, cycle_count:)
       return "Could not get object with key #{res_key} in bucket #{bucket_name}."
     else
       res_json.each do |ind_res|
-        res_comp << ind_res
+        res_comp.concat(ind_res)
       end
     end
   end
