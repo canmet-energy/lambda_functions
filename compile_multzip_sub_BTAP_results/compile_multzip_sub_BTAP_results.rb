@@ -2,12 +2,7 @@ require 'rubygems'
 require 'aws-sdk-s3'
 require 'fileutils'
 require 'zip'
-require 'parallel'
-require 'optparse'
 require 'json'
-require 'base64'
-require 'colored'
-require 'csv'
 
 def handler(event:, context:)
   osa_id = event["osa_id"]
