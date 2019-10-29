@@ -5,13 +5,16 @@ def lambda_handler(event:, context:)
   osa_id = event["osa_id"]
   bucket_name = event["bucket_name"]
   analysis_name = event["analysis_name"]
+  aws_region = "us-east-1"
+  unless event["region"].nil?
+    aws_region = event["region"]
+  end
   folder_name = analysis_name + "_" + osa_id
-  object_names = search_objects(osa_id: folder_name, bucket_name: bucket_name)
+  object_names = search_objects(osa_id: folder_name, bucket_name: bucket_name, region: aws_region)
   { statusCode: 200, body: JSON.generate(object_names) }
 end
 
-def search_objects(osa_id:, bucket_name:)
-  region = 'us-east-1'
+def search_objects(osa_id:, bucket_name:, region:)
   s3 = Aws::S3::Resource.new(region: region)
   bucket = s3.bucket(bucket_name)
   #Go through all of the objects in the s3 bucket searching for the qaqc.json and error.json objects related the current
