@@ -49,7 +49,9 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
   if s3file[:exist]
     qaqc_file = "qaqc.json"
     qaqc_json = unzip_files(zip_name: s3file[:file], search_name: qaqc_file)
-    qaqc_col << qaqc_json
+    qaqc_json.each do |ind_json|
+      qaqc_col << JSON.parse(ind_json)
+    end
     fetch_status = true
   else
     fetch_status  = false
