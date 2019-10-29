@@ -50,7 +50,7 @@ def get_s3_stream(file_id:, bucket_name:, region:)
 end
 
 def put_data_s3(file_id:, bucket_name:, data:, region:)
-  out_data = JSON.pretty_generate(data)
+  out_data = JSON.generate(data)
   s3 = Aws::S3::Resource.new(region: region)
   bucket = s3.bucket(bucket_name)
   out_obj = bucket.object(file_id)
