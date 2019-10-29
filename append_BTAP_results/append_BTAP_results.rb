@@ -26,9 +26,7 @@ def process_results(osa_id:, bucket_name:, append_tag:, cycle_count:, analysis_j
     if res_json.empty? || res_json.nil?
       return "Could not get object with key #{res_key} in bucket #{bucket_name} in region #{region}."
     else
-      res_json.each do |ind_res|
-        res_comp << (ind_res)
-      end
+      res_comp.concat(res_json)
     end
   end
   out_key = analysis_json[:analysis_name] + '_' + osa_id + '/' + append_tag + '.json'
