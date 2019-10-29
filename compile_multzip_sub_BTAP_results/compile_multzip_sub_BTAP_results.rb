@@ -9,24 +9,22 @@ def handler(event:, context:)
   bucket_name = event["bucket_name"]
   object_keys = event["object_keys"]
   cycle_count = event["cycle_count"]
+  aws_region = event["region"]
   analysis_json = {
       analysis_id: event["analysis_json"]["analysis_id"],
       analysis_name: event["analysis_json"]["analysis_name"]
   }
-  response = process_analysis(osa_id: osa_id, analysis_json: analysis_json, bucket_name: bucket_name, object_keys: object_keys, cycle_count: cycle_count)
+  response = process_analysis(osa_id: osa_id, analysis_json: analysis_json, bucket_name: bucket_name, object_keys: object_keys, cycle_count: cycle_count, region: aws_region)
   { statusCode: 200, body: JSON.generate(response) }
 end
 
-def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_count:)
+def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_count:, region:)
   qaqc_col = []
-  region = 'us-east-1'
-  s3 = Aws::S3::Resource.new(region: region)
-  bucket = s3.bucket(bucket_name)
 
   object_keys.each do |object_key|
     #If you find a zip file try downloading it and adding the information to the error_col array of hashes.
     folder_name = analysis_json[:analysis_name] + "_" + osa_id
-    fetch_status, qaqc_col = process_file(file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col)
+    fetch_status, qaqc_col = process_file(file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, region: region)
     if fetch_status == false
       return qaqc_col
     end
@@ -35,17 +33,17 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
   out_count = (cycle_count.to_i + 1).to_s
 
   qaqc_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "simulations_" + out_count + ".json"
-  qaqc_col_data = get_s3_stream(file_id: qaqc_col_file, bucket_name: bucket_name)
+  qaqc_col_data = get_s3_stream(file_id: qaqc_col_file, bucket_name: bucket_name, region: region)
   qaqc_col_data.concat(qaqc_col)
-  qaqc_status = put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name,data: qaqc_col_data)
+  qaqc_status = put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name,data: qaqc_col_data, region: region)
   return true
 end
 
-def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:)
+def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
   if file_id.nil?
     return "No file name passed."
   else
-    s3file = get_file_s3(file_id: file_id, bucket_name: bucket_name)
+    s3file = get_file_s3(file_id: file_id, bucket_name: bucket_name, region: region)
   end
 
   if s3file[:exist]
@@ -64,8 +62,7 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:)
   return fetch_status, qaqc_col
 end
 
-def get_file_s3(file_id:, bucket_name:)
-  region = 'us-east-1'
+def get_file_s3(file_id:, bucket_name:, region:)
   s3 = Aws::S3::Resource.new(region: region)
   bucket = s3.bucket(bucket_name)
   ret_bucket = bucket.object(file_id)
@@ -109,8 +106,7 @@ def unzip_files(zip_name:, search_name: nil)
   return out_info
 end
 
-def get_s3_stream(file_id:, bucket_name:)
-  region = 'us-east-1'
+def get_s3_stream(file_id:, bucket_name:, region:)
   s3_res = Aws::S3::Resource.new(region: region)
   bucket = s3_res.bucket(bucket_name)
   ret_bucket = bucket.object(file_id)
@@ -123,9 +119,8 @@ def get_s3_stream(file_id:, bucket_name:)
   return return_data
 end
 
-def put_data_s3(file_id:, bucket_name:, data:)
+def put_data_s3(file_id:, bucket_name:, data:, region:)
   out_data = JSON.generate(data)
-  region = 'us-east-1'
   s3 = Aws::S3::Resource.new(region: region)
   bucket = s3.bucket(bucket_name)
   out_obj = bucket.object(file_id)
