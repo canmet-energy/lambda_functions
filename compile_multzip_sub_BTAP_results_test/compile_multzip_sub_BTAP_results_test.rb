@@ -20,28 +20,48 @@ end
 
 def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_count:, region:)
   qaqc_col = []
+  missing_files = []
+  upload_res = []
 
   object_keys.each do |object_key|
     #If you find a zip file try downloading it and adding the information to the error_col array of hashes.
     folder_name = analysis_json[:analysis_name] + "_" + osa_id
     fetch_status, qaqc_col = process_file(file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, region: region)
     if fetch_status == false
-      return qaqc_col
+      if object_key.nil?
+        object_key = "unknown"
+      end
+      {
+          object_key: object_key,
+          message: qaqc_col
+      }
+      missing_files << object_key
     end
   end
 
   out_count = (cycle_count.to_i + 1).to_s
 
+  if qaqc_col.empty?
+    qaqc_col << {
+        message: "No results information colud be found."
+    }
+  end
   qaqc_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "simulations_" + out_count + ".json"
   qaqc_col_data = get_s3_stream(file_id: qaqc_col_file, bucket_name: bucket_name, region: region)
   qaqc_col_data.concat(qaqc_col)
-  qaqc_status = put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name,data: qaqc_col_data, region: region)
+  upload_res << put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name,data: qaqc_col_data, region: region)
+  unless missing_files.empty?
+    missing_file_log = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "missing_files_" + out_count + ".json"
+    upload_res << put_data_s3(file_id: missing_file_log, bucket_name: bucket_name,data: qaqc_col_data, region: region)
+  end
   return true
 end
 
 def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
   if file_id.nil?
-    return "No file name passed."
+    fetch_status = false
+    message = "No file name passed."
+    return fetch_status, message
   else
     s3file = get_file_s3(file_id: file_id, bucket_name: bucket_name, region: region)
   end
@@ -49,18 +69,25 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
   if s3file[:exist]
     qaqc_file = "qaqc.json"
     qaqc_json = unzip_files(zip_name: s3file[:file], search_name: qaqc_file)
-    qaqc_json.each do |ind_json|
-      qaqc_col << JSON.parse(ind_json)
+    if qaqc_json.empty?
+      fetch_status = false
+      message = "No qaqc.json file present in zip file."
+      # Get rid of the datapoint file that was just downloaded.
+      File.delete(s3file[:file])
+      return fetch_status, message
+    else
+      qaqc_json.each do |ind_json|
+        qaqc_col << JSON.parse(ind_json)
+      end
+      fetch_status = true
+      # Get rid of the datapoint file that was just downloaded.
+      File.delete(s3file[:file])
     end
-    fetch_status = true
   else
     fetch_status  = false
     message = "Could not find #{file_id}"
     return fetch_status, message
   end
-
-  # Get rid of the datapoint file that was just downloaded.
-  File.delete(s3file[:file])
   return fetch_status, qaqc_col
 end
 
