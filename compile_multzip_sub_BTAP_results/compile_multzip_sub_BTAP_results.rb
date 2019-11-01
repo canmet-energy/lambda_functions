@@ -19,29 +19,31 @@ def handler(event:, context:)
 end
 
 def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_count:, region:)
+  missing_files = []
   qaqc_col = []
-
   object_keys.each do |object_key|
     #If you find a zip file try downloading it and adding the information to the error_col array of hashes.
     folder_name = analysis_json[:analysis_name] + "_" + osa_id
     fetch_status, qaqc_col = process_file(file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, region: region)
     if fetch_status == false
-      return qaqc_col
+      missing_files << object_key
     end
   end
-
   out_count = (cycle_count.to_i + 1).to_s
-
   qaqc_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "simulations_" + out_count + ".json"
   qaqc_col_data = get_s3_stream(file_id: qaqc_col_file, bucket_name: bucket_name, region: region)
   qaqc_col_data.concat(qaqc_col)
   qaqc_status = put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name,data: qaqc_col_data, region: region)
+  unless missing_files.empty?
+    missing_file_name = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "missing_files_" + out_count + ".json"
+    missing_file_status = put_data_s3(file_id: missing_file_name, bucket_name: bucket_name,data: missing_files, region: region)
+  end
   return true
 end
 
 def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
   if file_id.nil?
-    return "No file name passed."
+    return false, "No file name passed."
   else
     s3file = get_file_s3(file_id: file_id, bucket_name: bucket_name, region: region)
   end
@@ -49,6 +51,12 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
   if s3file[:exist]
     qaqc_file = "qaqc.json"
     qaqc_json = unzip_files(zip_name: s3file[:file], search_name: qaqc_file)
+    if qaqc_json.empty?
+      File.delete(s3file[:file])
+      fetch_status  = false
+      message = "Could not find #{qaqc_file} in #{file_id}"
+      return fetch_status, message
+    end
     qaqc_json.each do |ind_json|
       qaqc_col << JSON.parse(ind_json)
     end
