@@ -43,7 +43,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
 
   if qaqc_col.empty?
     qaqc_col << {
-        message: "No results information colud be found."
+        message: "No results information could be found."
     }
   end
   qaqc_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "simulations_" + out_count + ".json"
@@ -54,7 +54,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
     missing_file_log = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "missing_files_" + out_count + ".json"
     upload_res << put_data_s3(file_id: missing_file_log, bucket_name: bucket_name,data: qaqc_col_data, region: region)
   end
-  return true
+  return upload_res
 end
 
 def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
