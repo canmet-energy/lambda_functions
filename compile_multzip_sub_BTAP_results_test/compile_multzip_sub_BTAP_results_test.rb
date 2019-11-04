@@ -131,7 +131,6 @@ def unzip_files(zip_name:, search_name: nil)
       status: false,
       out_info: []
   }
-  out_info = []
   Zip::File.open(zip_name) do |zip_file|
     zip_file.each do |entry|
       if search_name.nil?
@@ -147,7 +146,7 @@ def unzip_files(zip_name:, search_name: nil)
       end
     end
   end
-  return out_info
+  return output
 end
 
 def get_s3_stream(file_id:, bucket_name:, region:)
