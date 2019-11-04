@@ -20,22 +20,22 @@ end
 
 def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, region:)
   qaqc_col = []
-
+  build_types = []
   object_keys.each do |object_key|
     #If you find a zip file try downloading it and adding the information to the error_col array of hashes.
     folder_name = analysis_json[:analysis_name] + "_" + osa_id
-    fetch_status, qaqc_col = process_file(file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, region: region)
+    fetch_status, qaqc_col, build_types = process_file(file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, region: region, build_types: build_types)
     if fetch_status == false
       return qaqc_col
     end
   end
-
+  qaqc_col << build_types
   qaqc_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "issue_files.json"
   qaqc_status = put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name, data: qaqc_col, region: region)
   return true
 end
 
-def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
+def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:, build_types:)
   if file_id.nil?
     return "No file name passed."
   else
@@ -49,6 +49,19 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
       sub_data = read_osw(osw_info: JSON.parse(ind_json))
       unless sub_data.empty?
         qaqc_col << sub_data
+        is_pres = false
+        build_types.each do |build_type|
+          if sub_data[:build_type] == build_type
+            build_type[:number] += 1
+            is_pres = true
+          end
+        end
+        unless is_pres
+          build_types << {
+              build_type: sub_data,
+              number: 1
+          }
+        end
       end
     end
     fetch_status = true
@@ -60,7 +73,7 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
 
   # Get rid of the datapoint file that was just downloaded.
   File.delete(s3file[:file])
-  return fetch_status, qaqc_col
+  return fetch_status, qaqc_col, build_types
 end
 
 def get_file_s3(file_id:, bucket_name:, region:)
@@ -135,7 +148,7 @@ def read_osw(osw_info:)
   else
     return {
         status: status,
-        built_type: osw_info['steps'][0]['arguments']['building_type'],
+        build_type: osw_info['steps'][0]['arguments']['building_type'],
         weather_loc: osw_info['steps'][0]['arguments']['epw_file']
     }
   end
