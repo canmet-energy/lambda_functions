@@ -73,18 +73,19 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
   if s3file[:exist] == true
     qaqc_file = "qaqc.json"
     qaqc_json = unzip_files(zip_name: s3file[:file], search_name: qaqc_file)
-    if qaqc_json.empty? || qaqc_json.nil?
-      output[:fetch_status] = false
-      output[:message] = "No qaqc.json file present in zip file."
+    if qaqc_json[:status] == true
+      qaqc_out = {}
+      qaqc_json[:out_info].each do |ind_json|
+        qaqc_out = JSON.parse(ind_json)
+      end
+      output[:fetch_status] = true
+      output[:message] = qaqc_out
       # Get rid of the datapoint file that was just downloaded.
       File.delete(s3file[:file])
       return output
     else
-      #qaqc_json.each do |ind_json|
-      #  qaqc_col << JSON.parse(ind_json)
-      #end
-      output[:fetch_status] = true
-      output[:message] = qaqc_json
+      output[:fetch_status] = false
+      output[:message] = "No qaqc.json file present in zip file."
       # Get rid of the datapoint file that was just downloaded.
       File.delete(s3file[:file])
       return output
@@ -126,16 +127,22 @@ end
 # This extracts the data from a zip file that presumably contains a json file.  It returns the contents of that file in
 # an array of hashes (if there were multiple files in the zip file.)
 def unzip_files(zip_name:, search_name: nil)
+  output = {
+      status: false,
+      out_info: []
+  }
   out_info = []
   Zip::File.open(zip_name) do |zip_file|
     zip_file.each do |entry|
       if search_name.nil?
+        output[:status] = true
         content = entry.get_input_stream.read
-        out_info << content
+        output[:out_info] << content
       else
         if entry.name == search_name
+          output[:status] = true
           content = entry.get_input_stream.read
-          out_info << content
+          output[:out_info] << content
         end
       end
     end
