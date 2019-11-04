@@ -47,7 +47,7 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
     qaqc_json = unzip_files(zip_name: s3file[:file], search_name: qaqc_file)
     qaqc_json.each do |ind_json|
       sub_data = read_osw(osw_info: JSON.parse(ind_json))
-      unless sub_data.emty?
+      unless sub_data.empty?
         qaqc_col << sub_data
       end
     end
