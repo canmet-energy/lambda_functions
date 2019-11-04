@@ -51,7 +51,7 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:, bui
         qaqc_col << sub_data
         is_pres = false
         build_types.each do |build_type|
-          if sub_data[:build_type] == build_type
+          if sub_data[:build_type] == build_type[:build_type]
             build_type[:number] += 1
             is_pres = true
           end
