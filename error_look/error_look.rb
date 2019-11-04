@@ -46,7 +46,7 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:, bui
     qaqc_file = "out.osw"
     qaqc_json = unzip_files(zip_name: s3file[:file], search_name: qaqc_file)
     qaqc_json.each do |ind_json|
-      sub_data = read_osw(osw_info: JSON.parse(ind_json))
+      sub_data = read_osw(osw_info: JSON.parse(ind_json), object_key: file_id)
       unless sub_data.empty?
         qaqc_col << sub_data
         is_pres = false
@@ -141,13 +141,14 @@ def put_data_s3(file_id:, bucket_name:, data:, region:)
   out_obj.put(body: out_data)
 end
 
-def read_osw(osw_info:)
+def read_osw(osw_info:, object_key:)
   status = osw_info['completed_status']
   if (/FAIL/.match(status.upcase)).nil?
     return {}
   else
     return {
         status: status,
+        object_key: object_key,
         build_type: osw_info['steps'][0]['arguments']['building_type'],
         weather_loc: osw_info['steps'][0]['arguments']['epw_file']
     }
