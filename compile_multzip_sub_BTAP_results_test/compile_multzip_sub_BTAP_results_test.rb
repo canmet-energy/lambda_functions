@@ -22,10 +22,8 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
   qaqc_col = []
   missing_files = []
   upload_res = []
-
   object_keys.each do |object_key|
     #If you find a zip file try downloading it and adding the information to the error_col array of hashes.
-    folder_name = analysis_json[:analysis_name] + "_" + osa_id
     return_info = process_file(file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, region: region)
     if return_info[:fetch_status]
       qaqc_col << return_info[:message]
@@ -33,11 +31,10 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
       if object_key.nil?
         object_key = "unknown"
       end
-      {
+      missing_files << {
           object_key: object_key,
           message: return_info[:message]
       }
-      missing_files << object_key
     end
   end
 
@@ -48,6 +45,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
         message: "No results information could be found."
     }
   end
+  folder_name = analysis_json[:analysis_name] + "_" + osa_id
   qaqc_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "simulations_" + out_count + ".json"
   qaqc_col_data = get_s3_stream(file_id: qaqc_col_file, bucket_name: bucket_name, region: region)
   qaqc_col_data.concat(qaqc_col)
