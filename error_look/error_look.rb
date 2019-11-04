@@ -14,11 +14,11 @@ def handler(event:, context:)
   }
   object_key_file = analysis_json[:analysis_name] + '_' + osa_id + '/' + 'datapoint_ids.json'
   object_keys = get_s3_stream(file_id: object_key_file, bucket_name: bucket_name, region: aws_region)
-  response = process_analysis(osa_id: osa_id, analysis_json: analysis_json, bucket_name: bucket_name, object_keys: object_keys, cycle_count: cycle_count, region: aws_region)
+  response = process_analysis(osa_id: osa_id, analysis_json: analysis_json, bucket_name: bucket_name, object_keys: object_keys, region: aws_region)
   { statusCode: 200, body: JSON.generate(response) }
 end
 
-def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_count:, region:)
+def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, region:)
   qaqc_col = []
 
   object_keys.each do |object_key|
@@ -29,8 +29,6 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
       return qaqc_col
     end
   end
-
-  out_count = (cycle_count.to_i + 1).to_s
 
   qaqc_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "issue_files.json"
   qaqc_status = put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name, data: qaqc_col, region: region)
