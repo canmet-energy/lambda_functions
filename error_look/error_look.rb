@@ -58,7 +58,7 @@ def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:, bui
         end
         unless is_pres
           build_types << {
-              build_type: sub_data,
+              build_type: sub_data[:build_type],
               number: 1
           }
         end
