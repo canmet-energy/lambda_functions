@@ -55,57 +55,91 @@ end
 
 def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_count:, region:)
   qaqc_col = []
-
+  missing_files = []
+  upload_res = []
   object_keys.each do |object_key|
     #If you find a zip file try downloading it and adding the information to the error_col array of hashes.
-    folder_name = analysis_json[:analysis_name] + "_" + osa_id
-    fetch_status, qaqc_col = process_file(file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, region: region)
-    if fetch_status == false
-      return qaqc_col
+    return_info = process_file(file_id: object_key, analysis_json: analysis_json, bucket_name: bucket_name, qaqc_col: qaqc_col, region: region)
+    if return_info[:fetch_status]
+      qaqc_col << return_info[:message]
+    else
+      if object_key.nil?
+        object_key = "unknown"
+      end
+      missing_files << {
+          object_key: object_key,
+          message: return_info[:message]
+      }
     end
   end
 
   out_count = (cycle_count.to_i + 1).to_s
 
+  if qaqc_col.empty?
+    qaqc_col << {
+        message: "No results information could be found."
+    }
+  end
+  folder_name = analysis_json[:analysis_name] + "_" + osa_id
   qaqc_col_file = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "simulations_" + out_count + ".json"
   qaqc_col_data = get_s3_stream(file_id: qaqc_col_file, bucket_name: bucket_name, region: region)
   qaqc_col_data.concat(qaqc_col)
-  qaqc_status = put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name,data: qaqc_col_data, region: region)
-  return true
+  upload_res << put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name,data: qaqc_col_data, region: region)
+  unless missing_files.empty?
+    missing_file_log = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "missing_files_" + out_count + ".json"
+    upload_res << put_data_s3(file_id: missing_file_log, bucket_name: bucket_name,data: missing_files, region: region)
+  end
+  return upload_res
 end
 
 def process_file(file_id:, analysis_json:, bucket_name:, qaqc_col:, region:)
+  output = {
+      fetch_status: false,
+      message: "No file name was passed."
+  }
   if file_id.nil?
-    return "No file name passed."
+    return output
   else
     s3file = get_file_s3(file_id: file_id, bucket_name: bucket_name, region: region)
   end
 
-  if s3file[:exist]
+  if s3file[:exist] == true
     qaqc_file = "qaqc.json"
     qaqc_json = unzip_files(zip_name: s3file[:file], search_name: qaqc_file)
-    qaqc_json.each do |ind_json|
-      qaqc_col << JSON.parse(ind_json)
+    if qaqc_json[:status] == true
+      qaqc_out = {}
+      qaqc_json[:out_info].each do |ind_json|
+        qaqc_out = JSON.parse(ind_json)
+      end
+      output[:fetch_status] = true
+      output[:message] = qaqc_out
+      # Get rid of the datapoint file that was just downloaded.
+      File.delete(s3file[:file])
+      return output
+    else
+      output[:fetch_status] = false
+      output[:message] = "No qaqc.json file present in zip file."
+      # Get rid of the datapoint file that was just downloaded.
+      File.delete(s3file[:file])
+      return output
     end
-    fetch_status = true
   else
-    fetch_status  = false
-    message = "Could not find #{file_id}"
-    return fetch_status, message
+    output[:fetch_status]  = false
+    output[:message] = "Could not find #{file_id}"
+    return output
   end
-
-  # Get rid of the datapoint file that was just downloaded.
-  File.delete(s3file[:file])
-  return fetch_status, qaqc_col
 end
 
 def get_file_s3(file_id:, bucket_name:, region:)
   s3 = Aws::S3::Resource.new(region: region)
   bucket = s3.bucket(bucket_name)
   ret_bucket = bucket.object(file_id)
+  download_loc = "/tmp/out.zip"
+  if File.exist?(download_loc)
+    File.delete(download_loc)
+  end
   if ret_bucket.exists?
     #If you find an osw.zip file try downloading it and adding the information to the error_col array of hashes.
-    download_loc = '/tmp/out.zip'
     zip_index = 0
     while zip_index < 10
       zip_index += 1
@@ -126,21 +160,26 @@ end
 # This extracts the data from a zip file that presumably contains a json file.  It returns the contents of that file in
 # an array of hashes (if there were multiple files in the zip file.)
 def unzip_files(zip_name:, search_name: nil)
-  out_info = []
+  output = {
+      status: false,
+      out_info: []
+  }
   Zip::File.open(zip_name) do |zip_file|
     zip_file.each do |entry|
       if search_name.nil?
+        output[:status] = true
         content = entry.get_input_stream.read
-        out_info << content
+        output[:out_info] << content
       else
         if entry.name == search_name
+          output[:status] = true
           content = entry.get_input_stream.read
-          out_info << content
+          output[:out_info] << content
         end
       end
     end
   end
-  return out_info
+  return output
 end
 
 def get_s3_stream(file_id:, bucket_name:, region:)
