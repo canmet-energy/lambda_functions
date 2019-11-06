@@ -87,7 +87,7 @@ def process_analysis(osa_id:, analysis_json:, bucket_name:, object_keys:, cycle_
   upload_res << put_data_s3(file_id: qaqc_col_file, bucket_name: bucket_name,data: qaqc_col_data, region: region)
   unless missing_files.empty?
     missing_file_log = analysis_json[:analysis_name] + "_" + osa_id.to_s + "/" + "missing_files_" + out_count + ".json"
-    upload_res << put_data_s3(file_id: missing_file_log, bucket_name: bucket_name,data: qaqc_col_data, region: region)
+    upload_res << put_data_s3(file_id: missing_file_log, bucket_name: bucket_name,data: missing_files, region: region)
   end
   return upload_res
 end
