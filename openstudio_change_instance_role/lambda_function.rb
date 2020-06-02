@@ -44,7 +44,7 @@ def lambda_handler(event:, context:)
                                          })
   ami_id = instance_info.reservations[0].instances[0].image_id
   iam_profile_info = instance_info.reservations[0].instances[0].iam_instance_profile
-  test_arn = "arn:aws:iam::237788425317:instance-profile/ec2_s3_lambda"
+  test_arn = "arn:aws:iam::746565052018:instance-profile/BTAP_ec2_s3_lambda_rds"
   test_ami_ids = ["ami-095aa48abe1410bb2", "ami-0556ba62cb366627a", "ami-088db32fa4a7ad506", "ami-037ca03cca51aef46"]
   test_ami_id = false
   test_ami_ids.each do |check_ami_id|
